@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TripGPT | Sovereign Master Protocol</title>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+    <style>
+        :root { --slate-950: #020617; --indigo-600: #4f46e5; }
+        body { background-color: #f8fafc; color: var(--slate-950); font-family: 'Plus Jakarta Sans', sans-serif; height: 100vh; overflow: hidden; margin: 0; }
+
+        /* COMMAND DOCK: Horizontal Scroll Architecture */
+        .command-dock {
+            position: fixed; bottom: 1.5rem; right: 1.5rem;
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(20px);
+            padding: 0.6rem; border-radius: 3rem; display: none; /* Controlled by JS */
+            gap: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4); 
+            z-index: 1000; border: 1px solid rgba(255,255,255,0.1);
+            width: 68px; height: 68px; overflow-x: auto; overflow-y: hidden;
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex; align-items: center; justify-content: flex-start;
+            scrollbar-width: none; /* Firefox hide scrollbar */
+        }
+        .command-dock::-webkit-scrollbar { display: none; /* Chrome/Safari hide scrollbar */ }
+
+        .command-dock.expanded {
+            width: min(90vw, 400px); /* Responsive Width */
+            right: 50%;
+            transform: translateX(50%);
+            padding-right: 1.5rem;
+        }
+
+        .dock-item {
+            min-width: 52px; height: 52px; border-radius: 1.4rem; display: flex;
+            align-items: center; justify-content: center; color: white; cursor: pointer;
+            transition: 0.3s; flex-shrink: 0; position: relative;
+        }
+
+        .dock-trigger { 
+            background: var(--indigo-600); 
+            z-index: 20; 
+            position: sticky; 
+            left: 0; /* Ensures toggle is always accessible while scrolling */
+        }
+
+        .dock-item:not(.dock-trigger) { opacity: 0; transform: scale(0.4); }
+        .command-dock.expanded .dock-item { opacity: 1; transform: scale(1); }
+
+        /* Tooltips - Hidden on mobile for cleaner UX */
+        @media (min-width: 1024px) {
+            .dock-item[data-tooltip]:hover::after {
+                content: attr(data-tooltip); position: absolute; top: -55px; 
+                background: var(--slate-950); color: white; font-size: 10px; font-weight: 800;
+                padding: 6px 12px; border-radius: 8px; white-space: nowrap;
+            }
+        }
+
+        /* Responsive Views */
+        .view-screen { display: none; position: fixed; inset: 0; background: #f8fafc; z-index: 50; padding: 1.5rem; overflow-y: auto; padding-bottom: 8rem; }
+        .view-active { display: block; animation: slideUp 0.4s ease forwards; }
+        .silk-card { background: white; border-radius: 2.2rem; border: 1px solid rgba(0,0,0,0.03); padding: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.02); transition: 0.3s; }
+        .silk-card:hover { transform: translateY(-5px); border-color: var(--indigo-600); }
+
+        .premium-input { border: 2px solid var(--indigo-600) !important; background: #ffffff !important; box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.1); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Login Screen with Brand Identity */
+        #auth-gate { position: fixed; inset: 0; background: #ffffff; z-index: 3000; display: flex; align-items: center; justify-content: center; }
+        .login-box { text-align: center; max-width: 420px; width: 90%; padding: 4rem 2rem; background: white; border-radius: 3.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.08); border: 1px solid #f1f5f9; }
+        .brand-logo { font-size: 2.5rem; font-weight: 900; letter-spacing: -2px; color: var(--slate-950); margin-bottom: 0.5rem; }
+        .brand-accent { color: var(--indigo-600); }
+
+        .btn-auth {
+            width: 100%; background: var(--slate-950); color: white !important;
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            padding: 18px 0; border-radius: 1.25rem; font-weight: 800; text-transform: uppercase;
+            font-size: 11px; letter-spacing: 1px; transition: 0.3s; margin-top: 2rem;
+        }
+        .btn-auth:hover { background: var(--indigo-600); transform: translateY(-2px); }
+
+        #group-popup { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); z-index: 2000; align-items: center; justify-content: center; padding: 1rem; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-gate">
+        <div class="login-box">
+            <div class="brand-logo">TRIP<span class="brand-accent">GPT</span></div>
+            <div class="w-16 h-1 bg-indigo-600 mx-auto mb-10 rounded-full opacity-20"></div>
+            <h1 class="text-xl font-black tracking-tighter mb-2 text-slate-900">Sovereign Master Protocol</h1>
+            <p class="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] text-center">Identity Check Required</p>
+            <button id="admin-login-btn" class="btn-auth">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
+                <span>Authenticate Admin</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="dock-bar" class="command-dock">
+        <div class="dock-item dock-trigger" onclick="toggleDock()"><i class="fa-solid fa-compass"></i></div>
+        <div class="dock-item" data-tooltip="Users" onclick="showView('v-users')"><i class="fa-solid fa-user-shield"></i></div>
+        <div class="dock-item" data-tooltip="Circles" onclick="showView('v-groups')"><i class="fa-solid fa-circle-nodes"></i></div>
+        <div class="dock-item" data-tooltip="Idle" onclick="showView('v-inactive')"><i class="fa-solid fa-moon"></i></div>
+        <div class="dock-item" data-tooltip="Pulse" onclick="showView('v-announce')"><i class="fa-solid fa-bullhorn"></i></div>
+        <div class="dock-item bg-red-500/20 text-red-400" data-tooltip="Sign Out" onclick="logout()"><i class="fa-solid fa-power-off"></i></div>
+    </div>
+
+    <div id="v-users" class="view-screen view-active">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-3xl md:text-5xl font-black tracking-tighter mb-12">Global <span class="text-indigo-600">Accounts</span></h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="user-list-grid"></div>
+        </div>
+    </div>
+
+    <div id="v-groups" class="view-screen">
+        <div class="max-w-5xl mx-auto">
+            <h2 class="text-3xl md:text-5xl font-black tracking-tighter mb-12">Network <span class="text-indigo-600">Index</span></h2>
+            <div class="space-y-4" id="group-list-container"></div>
+        </div>
+    </div>
+
+    <div id="v-inactive" class="view-screen">
+        <div class="max-w-5xl mx-auto">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-12 gap-4">
+                <h2 class="text-3xl md:text-5xl font-black tracking-tighter">Idle <span class="text-indigo-600">Nodes</span></h2>
+                <button onclick="purgeAllInactive()" class="bg-red-50 text-red-500 px-6 py-3 rounded-2xl font-black text-[10px] uppercase border border-red-100 transition-all hover:bg-red-500 hover:text-white">Purge All Inactive</button>
+            </div>
+            <div class="space-y-4" id="inactive-list"></div>
+        </div>
+    </div>
+
+    <div id="v-announce" class="view-screen">
+        <div class="max-w-3xl mx-auto">
+            <h2 class="text-3xl md:text-5xl font-black tracking-tighter mb-12">System <span class="text-indigo-600">Pulse</span></h2>
+            <div class="silk-card shadow-2xl">
+                <div class="mb-8">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Broadcast Message</label>
+                    <textarea id="ann-text" class="w-full premium-input p-6 rounded-3xl h-40 font-bold outline-none" placeholder="Enter administrative announcement..."></textarea>
+                </div>
+                <div class="mb-8">
+                    <div class="flex justify-between items-center mb-4"><label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Targets</label><button onclick="selectAllGroups()" class="text-[10px] font-black text-indigo-600 underline">Select All</button></div>
+                    <div id="ann-group-selector" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-4 bg-slate-50 rounded-3xl"></div>
+                </div>
+                <button onclick="deployAnnouncement()" class="w-full bg-indigo-600 text-white py-6 rounded-3xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">Deploy Pulse</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="group-popup">
+        <div class="bg-white p-12 rounded-[3.5rem] max-w-md w-full relative text-center shadow-2xl">
+            <button onclick="closePopup()" class="absolute top-10 right-10 text-slate-300 hover:text-slate-900"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <div id="popup-content"></div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyCpLtdJ4lACW9pNn8fAUmooooqzh_5TIO4", authDomain: "trip-ddc48.firebaseapp.com", databaseURL: "https://trip-ddc48-default-rtdb.firebaseio.com", projectId: "trip-ddc48" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const auth = firebase.auth();
+        const MASTER_ID = "akhilgoel985@gmail.com";
+        let dormantIds = [];
+
+        auth.onAuthStateChanged(user => {
+            if (user && user.email.toLowerCase() === MASTER_ID) {
+                document.getElementById('auth-gate').style.display = 'none';
+                document.getElementById('dock-bar').style.display = 'flex';
+                syncData();
+            } else if (user) { auth.signOut(); }
+        });
+
+        function toggleDock() { document.getElementById('dock-bar').classList.toggle('expanded'); }
+
+        function showView(id) {
+            document.querySelectorAll('.view-screen').forEach(v => v.classList.remove('view-active'));
+            document.getElementById(id).classList.add('view-active');
+            // We do NOT collapse the dock here so you can navigate easily.
+        }
+
+        function syncData() {
+            db.ref('groups').on('value', snap => {
+                const groups = snap.val() || {};
+                const userGrid = document.getElementById('user-list-grid');
+                const groupList = document.getElementById('group-list-container');
+                const inactiveList = document.getElementById('inactive-list');
+                const selector = document.getElementById('ann-group-selector');
+
+                userGrid.innerHTML = ''; groupList.innerHTML = ''; inactiveList.innerHTML = ''; selector.innerHTML = '';
+                let users = {}; let groupArr = []; dormantIds = [];
+
+                Object.entries(groups).forEach(([id, g]) => {
+                    const members = g.members || [];
+                    groupArr.push({ id, ...g, memberCount: members.length });
+                    selector.innerHTML += `<div class="chip bg-white border border-slate-200 px-5 py-2.5 rounded-2xl text-[10px] font-black cursor-pointer hover:border-indigo-600 transition-all" onclick="this.classList.toggle('bg-indigo-600'); this.classList.toggle('text-white'); this.classList.toggle('border-indigo-600')" data-id="${id}">${g.name}</div>`;
+                    members.forEach(m => { if(!users[m.email]) users[m.email] = { name: m.name, email: m.email }; });
+                    
+                    if(members.length < 2 || !g.expenses) {
+                        dormantIds.push(id);
+                        inactiveList.innerHTML += `<div class="silk-card flex justify-between items-center"><div class="flex items-center gap-4"><div class="w-3 h-3 bg-red-400 rounded-full"></div><div><p class="font-black">${g.name}</p><p class="text-[9px] text-slate-300 font-black uppercase">${id}</p></div></div><button onclick="deleteGroup('${id}', '${g.name}')" class="text-red-300 hover:text-red-500 transition-colors p-2"><i class="fa-solid fa-trash-can"></i></button></div>`;
+                    }
+                });
+
+                Object.values(users).forEach(u => {
+                    userGrid.innerHTML += `
+                        <div class="silk-card flex flex-col items-center text-center">
+                            <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mb-5 font-black text-2xl shadow-inner">${u.name.charAt(0)}</div>
+                            <h4 class="font-black text-slate-900 text-lg">${u.name}</h4>
+                            <p class="text-xs font-bold text-slate-400 mb-6">${u.email}</p>
+                            <span class="bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">Master Member</span>
+                        </div>`;
+                });
+
+                groupArr.sort((a,b) => b.memberCount - a.memberCount).forEach((g, i) => {
+                    groupList.innerHTML += `<div class="silk-card flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-all" onclick="openPopup('${g.id}')">
+                        <div class="flex items-center gap-6">
+                            <div class="text-3xl">${i === 0 ? '🏆' : '📁'}</div>
+                            <div><p class="font-black text-xl text-slate-900">${g.name}</p><p class="text-[10px] font-black text-slate-300 uppercase">${g.id}</p></div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-3xl font-black text-indigo-600 leading-none">${g.memberCount}</p>
+                            <p class="text-[9px] font-black uppercase text-slate-400 mt-2">Active Users</p>
+                        </div>
+                    </div>`;
+                });
+            });
+        }
+
+        async function openPopup(id) {
+            const snap = await db.ref(`groups/${id}`).get();
+            const g = snap.val();
+            const members = g.members || [];
+            document.getElementById('popup-content').innerHTML = `
+                <div class="w-24 h-24 bg-indigo-50 text-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-inner"><i class="fa-solid fa-users-viewfinder text-4xl"></i></div>
+                <h3 class="text-3xl font-black tracking-tighter mb-1 text-slate-900">${g.name}</h3>
+                <p class="text-indigo-600 font-bold mb-10 text-[10px] uppercase">${id}</p>
+                <div class="space-y-4 text-left">
+                    <div class="bg-slate-50 p-6 rounded-3xl flex justify-between items-center"><span class="text-[9px] font-black uppercase text-slate-400">Total Population</span><span class="font-black text-slate-900">${members.length} Users</span></div>
+                    <div class="bg-slate-50 p-6 rounded-3xl flex justify-between items-center"><span class="text-[9px] font-black uppercase text-slate-400">Admin Identity</span><span class="font-black text-slate-900 text-xs">${g.admin}</span></div>
+                </div>`;
+            document.getElementById('group-popup').style.display = 'flex';
+        }
+
+        async function purgeAllInactive() {
+            if(dormantIds.length === 0) return alert("System status: Optimized.");
+            if(confirm(`Security Protocol: Permanently purge all ${dormantIds.length} dormant nodes?`)) {
+                for(const id of dormantIds) { await db.ref(`groups/${id}`).remove(); }
+                alert("Maintenance Complete.");
+            }
+        }
+
+        async function deployAnnouncement() {
+            const msg = document.getElementById('ann-text').value.trim();
+            const selected = Array.from(document.querySelectorAll('#ann-group-selector .text-white')).map(el => el.dataset.id);
+            if(!msg || selected.length === 0) return alert("Required: Message & Targets.");
+            const updates = {};
+            selected.forEach(groupId => {
+                const annKey = db.ref(`groups/${groupId}/announcements`).push().key;
+                updates[`groups/${groupId}/announcements/${annKey}`] = { message: msg, timestamp: new Date().getTime() };
+                const logKey = db.ref(`groups/${groupId}/expenses`).push().key;
+                updates[`groups/${groupId}/expenses/${logKey}`] = { title: "📢 ADMIN: " + msg, amount: 0, involved: ["SYSTEM"], by: "ADMIN", date: new Date().toLocaleDateString() };
+            });
+            await db.ref().update(updates);
+            alert("Broadcast Deployed."); document.getElementById('ann-text').value = '';
+        }
+
+        function deleteGroup(id, name) { if(confirm(`Purge "${name}"?`)) db.ref(`groups/${id}`).remove(); }
+        function selectAllGroups() { document.querySelectorAll('#ann-group-selector .chip').forEach(el => el.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600')); }
+        function closePopup() { document.getElementById('group-popup').style.display = 'none'; }
+        function logout() { auth.signOut().then(() => location.reload()); }
+        document.getElementById('admin-login-btn').onclick = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    </script>
+</body>
+</html>
