@@ -219,6 +219,14 @@
         }
         @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
 
+        /* Subscription Notification */
+        .notif-badge {
+            position: absolute; top: -5px; right: -5px; width: 18px; height: 18px;
+            background: #ef4444; color: white; font-size: 10px; font-weight: 900;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            border: 2px solid var(--slate-950);
+        }
+
     </style>
 </head>
 <body>
@@ -254,7 +262,7 @@
                 <p class="text-slate-500 font-bold text-lg">Global node infrastructure.</p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 <div class="cyber-card stat-card">
                     <p class="stat-label">Clusters</p>
                     <p class="stat-value" id="dash-total-groups">0</p>
@@ -263,6 +271,13 @@
                     <p class="stat-label text-slate-400">Orphans</p>
                     <p class="stat-value text-slate-900" id="dash-ghost-users">0</p>
                 </div>
+                <div class="cyber-card bg-amber-50 border-none">
+                    <p class="stat-label text-amber-600">Active Prime</p>
+                    <p class="stat-value text-slate-900" id="dash-active-subs">0</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
                 <div class="cyber-card bg-indigo-50 border-none">
                     <p class="stat-label text-indigo-600">Prime Member</p>
                     <p class="text-2xl font-black mt-3 truncate text-slate-800" id="dash-power-user">---</p>
@@ -303,6 +318,13 @@
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6" id="member-grid"></div>
         </div>
 
+        <div id="v-subs" class="view-pane">
+            <div class="mb-12"><h2 class="text-5xl md:text-6xl font-black tracking-tight text-slate-900">Prime Approvals</h2></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="subscription-request-list">
+                <p class="text-slate-400 font-bold text-center col-span-full py-20">No pending subscription requests.</p>
+            </div>
+        </div>
+
         <div id="v-ann" class="view-pane">
             <div class="max-w-3xl mx-auto">
                 <h2 class="text-5xl md:text-6xl font-black tracking-tight text-slate-900 mb-4 text-center">Pulse</h2>
@@ -326,6 +348,10 @@
             <div class="dock-item active" onclick="nav('v-dash', this)"><i class="fa-solid fa-chart-pie"></i></div>
             <div class="dock-item" onclick="nav('v-groups', this)"><i class="fa-solid fa-layer-group"></i></div>
             <div class="dock-item" onclick="nav('v-mems', this)"><i class="fa-solid fa-users"></i></div>
+            <div class="dock-item" onclick="nav('v-subs', this)">
+                <i class="fa-solid fa-crown"></i>
+                <div id="sub-notif" class="notif-badge hidden">0</div>
+            </div>
             <div class="dock-item" onclick="nav('v-ann', this)"><i class="fa-solid fa-satellite-dish"></i></div>
             <div class="dock-item text-red-400" onclick="logout()"><i class="fa-solid fa-power-off"></i></div>
         </div>
@@ -382,6 +408,19 @@
                 updateStream(localGroups);
                 checkBulkPurge(localGroups);
             });
+
+            // LISTEN FOR SUBSCRIPTIONS
+            db.ref('active_subscriptions').on('value', snap => {
+                document.getElementById('dash-active-subs').innerText = snap.exists() ? Object.keys(snap.val()).length : 0;
+            });
+
+            db.ref('subscription_requests').on('value', snap => {
+                renderSubscriptionRequests(snap.val());
+                const count = snap.exists() ? Object.keys(snap.val()).length : 0;
+                const badge = document.getElementById('sub-notif');
+                if(count > 0) { badge.innerText = count; badge.classList.remove('hidden'); }
+                else { badge.classList.add('hidden'); }
+            });
         }
 
         function processDashboard(groups) {
@@ -405,6 +444,45 @@
                 const reg = Object.values(s.val()||{}).map(u => u.email.toLowerCase());
                 document.getElementById('dash-ghost-users').innerText = reg.filter(e => !emails.has(e)).length;
             });
+        }
+
+        // RENDER SUBSCRIPTION REQUESTS
+        function renderSubscriptionRequests(requests) {
+            const list = document.getElementById('subscription-request-list');
+            if(!requests) {
+                list.innerHTML = `<p class="text-slate-400 font-bold text-center col-span-full py-20">No pending subscription requests.</p>`;
+                return;
+            }
+            list.innerHTML = Object.entries(requests).map(([key, r]) => `
+                <div class="cyber-card">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-black">${r.userName.charAt(0)}</div>
+                        <div>
+                            <p class="font-black text-slate-900">${r.userName}</p>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">${r.userEmail}</p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-2xl mb-6">
+                        <span class="modal-section-title">Tier & TXID</span>
+                        <p class="text-sm font-black text-slate-800">${r.tier}</p>
+                        <p class="text-[10px] font-mono text-indigo-600 mt-1">${r.transactionId}</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="resolveSubscription('${key}', true, '${r.userEmail}')" class="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-black text-[10px] uppercase">Approve</button>
+                        <button onclick="resolveSubscription('${key}', false)" class="flex-1 bg-red-50 text-red-500 py-3 rounded-xl font-black text-[10px] uppercase">Reject</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function resolveSubscription(key, approved, email) {
+            if(approved) {
+                const uid = email.replace(/[.$#[\]]/g, "_"); // Simple sanitized key or lookup
+                // In a production system, you'd lookup UID by email, here we push to a verified list
+                await db.ref(`active_subscriptions/${key}`).set({ email: email, timestamp: Date.now() });
+            }
+            await db.ref(`subscription_requests/${key}`).remove();
+            alert(approved ? "Subscription Activated" : "Request Declined");
         }
 
         function checkBulkPurge(groups) {
